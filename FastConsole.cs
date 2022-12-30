@@ -1,7 +1,7 @@
 ﻿using Microsoft.Win32.SafeHandles;
 using System.Runtime.InteropServices;
 
-class FastConsole {
+public class FastConsole {
     // Interaction with Windows API to write to the console
     [StructLayout(LayoutKind.Sequential)]
     struct Coord {
