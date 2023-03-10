@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 
 namespace FastConsole;
 
-public class FastConsole {
+public static class FConsole {
     // Interaction with Windows API to write to the console
     [StructLayout(LayoutKind.Sequential)]
     struct Coord {
@@ -39,7 +39,7 @@ public class FastConsole {
 
     // Initialization
     [STAThread]
-    public static void Initialize(string title, System.ConsoleColor foreground = System.ConsoleColor.Gray, ConsoleColor background = ConsoleColor.Black) {
+    public static void Initialize(string title, ConsoleColor foreground = ConsoleColor.Gray, ConsoleColor background = ConsoleColor.Black) {
         Console.OutputEncoding = System.Text.Encoding.Unicode;
         Console.Title = title;
         Maximize();
@@ -56,7 +56,7 @@ public class FastConsole {
 
         ForegroundColor = foreground;
         BackgroundColor = background;
-        FillBuffer(' ', ForegroundColor, BackgroundColor);
+        Clear(ForegroundColor, BackgroundColor);
     }
     static void Maximize() {
         [DllImport("user32.dll")]
@@ -116,6 +116,9 @@ public class FastConsole {
         }
     }
 
+    public static void SetChar(short x, short y, PixelValue value) {
+        SetChar(x, y, value.character, value.foreground, value.background);
+    }
     public static void SetChar((int x, int y) coords, char c, ConsoleColor foreground, ConsoleColor background, bool overline = false, bool leftline = false, bool rightline = false, bool underline = false) {
         SetChar((short)coords.x, (short)coords.y, c, foreground, background, overline, leftline, rightline, underline);
     }
@@ -127,7 +130,7 @@ public class FastConsole {
         short colorset = Colorset(foreground, background);
         short gridset = Gridset(overline, leftline, rightline);
 
-        if (address < 0 || address >= buffer.Length) throw new Exception("Can't write to address (" + x + "," + y + ").");
+        if (address < 0 || address >= buffer.Length) return; //throw new Exception("Can't write to address (" + x + "," + y + ").");
         buffer[address].Char = c;
         buffer[address].Attributes = (short)(colorset + gridset);
 
@@ -138,11 +141,14 @@ public class FastConsole {
         }
     }
 
-    static void FillBuffer(char c, ConsoleColor foreground, ConsoleColor background) {
+    public static void FillBuffer(char c, ConsoleColor foreground, ConsoleColor background) {
         for (int i = 0; i < buffer.Length; i++) {
             buffer[i].Attributes = Colorset(foreground, background);
             buffer[i].Char = c;
         }
+    }
+    public static void Clear(ConsoleColor foreground = ConsoleColor.Gray, ConsoleColor background = ConsoleColor.Black) {
+        FillBuffer(' ', foreground, background);
     }
 
     // Drawing the buffer to the screen
@@ -169,4 +175,27 @@ public class FastConsole {
         ConsoleColor background = (ConsoleColor)(attributes >> 4);
         return (character, foreground, background);
     }
+}
+
+public readonly record struct PixelValue {
+    public readonly ConsoleColor foreground, background;
+    public readonly char character;
+
+    public override string ToString() => foreground.ToString() + character + background.ToString();
+
+    public enum Density { background, sparse, medium, dense }
+    static char DensityChar(Density d) =>
+        d == Density.background ? ' ' :
+        d == Density.sparse ? '░' :
+        d == Density.medium ? '▒' :
+        d == Density.dense ? '▓' :
+        '?';
+    public PixelValue(ConsoleColor foreground, ConsoleColor background, char character) {
+        this.foreground = foreground;
+        this.background = background;
+        this.character = character;
+    }
+    public PixelValue(ConsoleColor foreground, ConsoleColor background, Density density)
+        : this(foreground, background, DensityChar(density)) { }
+    public PixelValue(ConsoleColor color) : this(color, color, DensityChar(Density.background)) { }
 }
